@@ -1,0 +1,143 @@
+// Pipeline Declarativo para QA Automation
+pipeline {
+    agent {
+        docker {
+            image 'node:18-alpine'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+    
+    environment {
+        CI = 'true'
+        NODE_ENV = 'test'
+        REPORTS_DIR = 'reports'
+    }
+    
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+    }
+    
+    stages {
+        stage('🔍 Checkout') {
+            steps {
+                checkout scm
+                sh 'git log --oneline -5'
+            }
+        }
+        
+        stage('📦 Install Dependencies') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+        
+        stage('🔬 Static Analysis') {
+            parallel {
+                stage('ESLint') {
+                    steps {
+                        sh 'npm run lint -- --format json -o ${REPORTS_DIR}/eslint.json || true'
+                    }
+                }
+                stage('TypeScript Check') {
+                    steps {
+                        sh 'npm run type-check || true'
+                    }
+                }
+            }
+        }
+        
+        stage('🧪 Unit Tests') {
+            steps {
+                sh 'npm run test:unit -- --coverage --reporters=default --reporters=jest-junit'
+            }
+            post {
+                always {
+                    junit 'junit.xml'
+                    publishHTML([
+                        reportDir: 'coverage/lcov-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('🔗 Integration Tests') {
+            steps {
+                sh 'npm run test:integration'
+            }
+        }
+        
+        stage('🎭 E2E Tests') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                sh 'npm run test:e2e'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'cypress/videos/**/*', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'cypress/screenshots/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+        
+        stage('📊 Quality Gate') {
+            steps {
+                script {
+                    def coverageThreshold = 80
+                    def coverage = sh(
+                        script: "cat coverage/coverage-summary.json | jq '.total.lines.pct'",
+                        returnStdout: true
+                    ).trim().toFloat()
+                    
+                    if (coverage < coverageThreshold) {
+                        error "Coverage ${coverage}% is below threshold ${coverageThreshold}%"
+                    }
+                    echo "✅ Coverage: ${coverage}% (threshold: ${coverageThreshold}%)"
+                }
+            }
+        }
+        
+        stage('📝 Generate Reports') {
+            steps {
+                sh '''
+                    mkdir -p ${REPORTS_DIR}
+                    echo "Build: ${BUILD_NUMBER}" > ${REPORTS_DIR}/build-info.txt
+                    echo "Branch: ${GIT_BRANCH}" >> ${REPORTS_DIR}/build-info.txt
+                    echo "Commit: ${GIT_COMMIT}" >> ${REPORTS_DIR}/build-info.txt
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'reports/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            slackSend(
+                color: 'good',
+                message: "✅ Pipeline SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            )
+        }
+        failure {
+            slackSend(
+                color: 'danger',
+                message: "❌ Pipeline FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            )
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

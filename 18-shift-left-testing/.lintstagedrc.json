@@ -1,0 +1,25 @@
+{
+  "*.{js,jsx,ts,tsx}": [
+    "eslint --fix",
+    "prettier --write",
+    "jest --bail --findRelatedTests --passWithNoTests"
+  ],
+  "*.{json,md,yml,yaml}": [
+    "prettier --write"
+  ],
+  "*.py": [
+    "black",
+    "isort",
+    "flake8"
+  ],
+  "*.{css,scss}": [
+    "stylelint --fix",
+    "prettier --write"
+  ],
+  "Dockerfile*": [
+    "hadolint"
+  ],
+  "*.tf": [
+    "terraform fmt"
+  ]
+}

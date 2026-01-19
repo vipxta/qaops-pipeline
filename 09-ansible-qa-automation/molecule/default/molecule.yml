@@ -1,0 +1,70 @@
+# Molecule Configuration for QA Role Testing
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: ubuntu-qa
+    image: ubuntu:22.04
+    pre_build_image: false
+    dockerfile: Dockerfile.j2
+    privileged: true
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    
+  - name: centos-qa
+    image: centos:8
+    pre_build_image: false
+    dockerfile: Dockerfile.j2
+    privileged: true
+    command: /lib/systemd/systemd
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      callbacks_enabled: profile_tasks
+      gathering: smart
+    ssh_connection:
+      pipelining: true
+  inventory:
+    group_vars:
+      all:
+        qa_environment: test
+        enable_monitoring: true
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+    cleanup: cleanup.yml
+
+verifier:
+  name: testinfra
+  options:
+    verbose: true
+  additional_files_or_dirs:
+    - ../shared/tests/
+
+scenario:
+  name: default
+  test_sequence:
+    - dependency
+    - lint
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - cleanup
+    - destroy

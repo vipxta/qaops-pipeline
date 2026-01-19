@@ -1,0 +1,106 @@
+// Pipeline Scriptado Avançado para QA
+node {
+    def testResults = [:]
+    def startTime = System.currentTimeMillis()
+    
+    try {
+        stage('🔍 Checkout') {
+            checkout scm
+            env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+        }
+        
+        stage('📦 Setup') {
+            docker.image('node:18-alpine').inside {
+                sh 'npm ci'
+            }
+        }
+        
+        stage('🧪 Tests') {
+            def testStages = [:]
+            
+            testStages['Unit Tests'] = {
+                node {
+                    docker.image('node:18-alpine').inside {
+                        try {
+                            sh 'npm run test:unit'
+                            testResults['unit'] = 'PASSED'
+                        } catch (e) {
+                            testResults['unit'] = 'FAILED'
+                            throw e
+                        }
+                    }
+                }
+            }
+            
+            testStages['Integration Tests'] = {
+                node {
+                    docker.image('node:18-alpine').inside {
+                        try {
+                            sh 'npm run test:integration'
+                            testResults['integration'] = 'PASSED'
+                        } catch (e) {
+                            testResults['integration'] = 'FAILED'
+                            throw e
+                        }
+                    }
+                }
+            }
+            
+            testStages['API Tests'] = {
+                node {
+                    docker.image('postman/newman:alpine').inside {
+                        try {
+                            sh 'newman run api-tests.json'
+                            testResults['api'] = 'PASSED'
+                        } catch (e) {
+                            testResults['api'] = 'FAILED'
+                            throw e
+                        }
+                    }
+                }
+            }
+            
+            parallel testStages
+        }
+        
+        stage('📊 Quality Gate') {
+            def passedTests = testResults.values().count { it == 'PASSED' }
+            def totalTests = testResults.size()
+            
+            echo "Test Results: ${passedTests}/${totalTests} passed"
+            
+            if (passedTests < totalTests) {
+                error "Quality Gate failed: ${totalTests - passedTests} test suite(s) failed"
+            }
+        }
+        
+        stage('📝 Report') {
+            def duration = (System.currentTimeMillis() - startTime) / 1000
+            
+            def report = """
+            ════════════════════════════════════════
+            📊 QA Pipeline Report
+            ════════════════════════════════════════
+            Build: #${env.BUILD_NUMBER}
+            Commit: ${env.GIT_COMMIT_SHORT}
+            Duration: ${duration}s
+            
+            Test Results:
+            ${testResults.collect { k, v -> "  • ${k}: ${v}" }.join('\n')}
+            ════════════════════════════════════════
+            """
+            
+            echo report
+            writeFile file: 'qa-report.txt', text: report
+            archiveArtifacts artifacts: 'qa-report.txt'
+        }
+        
+        currentBuild.result = 'SUCCESS'
+        
+    } catch (e) {
+        currentBuild.result = 'FAILURE'
+        throw e
+    } finally {
+        cleanWs()
+    }
+}

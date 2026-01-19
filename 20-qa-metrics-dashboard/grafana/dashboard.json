@@ -1,0 +1,202 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "qa-metrics",
+    "title": "QA Metrics Dashboard",
+    "tags": ["qa", "testing", "metrics"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "refresh": "5m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Test Pass Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "(sum(test_passed_total) / sum(test_executed_total)) * 100",
+            "legendFormat": "Pass Rate"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "textMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 80 },
+                { "color": "green", "value": 95 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Tests Executed",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(test_executed_total)",
+            "legendFormat": "Tests"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Code Coverage",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "code_coverage_percentage",
+            "legendFormat": "Coverage"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 60 },
+                { "color": "green", "value": 80 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Quality Score",
+        "type": "gauge",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "quality_score_overall",
+            "legendFormat": "Score"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 70 },
+                { "color": "green", "value": 85 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Test Results Over Time",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(test_passed_total[1h]))",
+            "legendFormat": "Passed"
+          },
+          {
+            "expr": "sum(rate(test_failed_total[1h]))",
+            "legendFormat": "Failed"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 20
+            }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Passed" },
+              "properties": [{ "id": "color", "value": { "fixedColor": "green" } }]
+            },
+            {
+              "matcher": { "id": "byName", "options": "Failed" },
+              "properties": [{ "id": "color", "value": { "fixedColor": "red" } }]
+            }
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "Coverage Trend",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "code_coverage_percentage",
+            "legendFormat": "Coverage %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 30,
+              "gradientMode": "scheme"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 60 },
+                { "color": "green", "value": 80 }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Flaky Tests",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "topk(10, flaky_test_count)",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Test Duration Distribution",
+        "type": "histogram",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(test_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p95"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    }
+  }
+}

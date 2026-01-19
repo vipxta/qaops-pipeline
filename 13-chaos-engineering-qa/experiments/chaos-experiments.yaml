@@ -1,0 +1,169 @@
+# Litmus Chaos Experiments for QA
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: qa-chaos-engine
+  namespace: qa-tests
+spec:
+  appinfo:
+    appns: qa-tests
+    applabel: "app=qa-application"
+    appkind: deployment
+  chaosServiceAccount: litmus-admin
+  experiments:
+    # ===================
+    # POD CHAOS
+    # ===================
+    - name: pod-delete
+      spec:
+        components:
+          env:
+            - name: TOTAL_CHAOS_DURATION
+              value: '30'
+            - name: CHAOS_INTERVAL
+              value: '10'
+            - name: FORCE
+              value: 'false'
+            - name: PODS_AFFECTED_PERC
+              value: '50'
+        probe:
+          - name: healthcheck
+            type: httpProbe
+            mode: Continuous
+            httpProbe/inputs:
+              url: http://qa-application:3000/health
+              method:
+                get:
+                  criteria: ==
+                  responseCode: "200"
+            runProperties:
+              probeTimeout: 5
+              interval: 5
+              retry: 3
+
+    # ===================
+    # NETWORK CHAOS
+    # ===================
+    - name: pod-network-latency
+      spec:
+        components:
+          env:
+            - name: NETWORK_INTERFACE
+              value: 'eth0'
+            - name: NETWORK_LATENCY
+              value: '500'  # 500ms latency
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: CONTAINER_RUNTIME
+              value: 'containerd'
+        probe:
+          - name: response-time-check
+            type: cmdProbe
+            mode: Edge
+            cmdProbe/inputs:
+              command: ./check-response-time.sh
+              source:
+                image: qa-tools:latest
+              comparator:
+                type: int
+                criteria: <=
+                value: "2000"  # Max 2s response time
+            runProperties:
+              probeTimeout: 10
+              interval: 5
+
+    - name: pod-network-loss
+      spec:
+        components:
+          env:
+            - name: NETWORK_INTERFACE
+              value: 'eth0'
+            - name: NETWORK_PACKET_LOSS_PERCENTAGE
+              value: '30'  # 30% packet loss
+            - name: TOTAL_CHAOS_DURATION
+              value: '30'
+
+    # ===================
+    # RESOURCE CHAOS
+    # ===================
+    - name: pod-cpu-hog
+      spec:
+        components:
+          env:
+            - name: CPU_CORES
+              value: '2'
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+            - name: CPU_LOAD
+              value: '80'  # 80% CPU usage
+        probe:
+          - name: cpu-threshold
+            type: promProbe
+            mode: Continuous
+            promProbe/inputs:
+              endpoint: http://prometheus:9090
+              query: avg(rate(container_cpu_usage_seconds_total{pod=~"qa-.*"}[1m])) * 100
+              comparator:
+                type: float
+                criteria: <=
+                value: "90"  # Should not exceed 90%
+            runProperties:
+              probeTimeout: 5
+              interval: 10
+
+    - name: pod-memory-hog
+      spec:
+        components:
+          env:
+            - name: MEMORY_CONSUMPTION
+              value: '500'  # 500Mi
+            - name: TOTAL_CHAOS_DURATION
+              value: '60'
+
+    # ===================
+    # DNS CHAOS
+    # ===================
+    - name: pod-dns-error
+      spec:
+        components:
+          env:
+            - name: TARGET_HOSTNAMES
+              value: 'external-api.example.com'
+            - name: TOTAL_CHAOS_DURATION
+              value: '30'
+
+---
+# Chaos Schedule for Regular Testing
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosSchedule
+metadata:
+  name: qa-weekly-chaos
+  namespace: qa-tests
+spec:
+  schedule:
+    now: false
+    once:
+      executionTime: ""
+    repeat:
+      timeRange:
+        startTime: "2024-01-01T09:00:00Z"
+        endTime: "2024-12-31T18:00:00Z"
+      properties:
+        minChaosInterval: 24h  # Daily
+      workDays:
+        includedDays: "Mon,Tue,Wed,Thu,Fri"
+  engineTemplateSpec:
+    appinfo:
+      appns: qa-tests
+      applabel: "app=qa-application"
+      appkind: deployment
+    chaosServiceAccount: litmus-admin
+    experiments:
+      - name: pod-delete
+        spec:
+          components:
+            env:
+              - name: TOTAL_CHAOS_DURATION
+                value: '30'
+              - name: PODS_AFFECTED_PERC
+                value: '30'

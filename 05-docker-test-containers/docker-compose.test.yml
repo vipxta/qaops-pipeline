@@ -1,0 +1,112 @@
+# Docker Compose para Testes de Integração
+version: '3.9'
+
+services:
+  # ===================
+  # APPLICATION
+  # ===================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://test:test@postgres:5432/testdb
+      - REDIS_URL=redis://redis:6379
+      - MONGODB_URL=mongodb://mongodb:27017/testdb
+    volumes:
+      - ./coverage:/app/coverage
+      - ./reports:/app/reports
+    networks:
+      - test-network
+
+  # ===================
+  # DATABASES
+  # ===================
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: testdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d testdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  mongodb:
+    image: mongo:6
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+    tmpfs:
+      - /data/db
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # ===================
+  # MESSAGE BROKERS
+  # ===================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: test
+      RABBITMQ_DEFAULT_PASS: test
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - test-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - test-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  coverage:
+  reports:

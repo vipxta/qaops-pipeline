@@ -1,0 +1,53 @@
+# Helm Values para QA Tests
+replicaCount: 3
+
+image:
+  repository: qaops/test-runner
+  tag: latest
+  pullPolicy: Always
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+env:
+  NODE_ENV: test
+  CI: "true"
+
+secrets:
+  databaseUrl: "postgresql://test:test@postgres:5432/testdb"
+  redisUrl: "redis://redis:6379"
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: standard
+
+postgres:
+  enabled: true
+  image: postgres:15-alpine
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+
+monitoring:
+  enabled: true
+  prometheus:
+    scrape: true
+    port: 9090
+
+job:
+  parallelism: 3
+  completions: 3
+  backoffLimit: 2
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 3600

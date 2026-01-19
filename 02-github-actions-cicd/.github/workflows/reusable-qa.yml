@@ -1,0 +1,70 @@
+name: Reusable QA Workflow
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '18'
+      run-e2e:
+        description: 'Run E2E tests'
+        required: false
+        type: boolean
+        default: true
+      coverage-threshold:
+        description: 'Minimum coverage %'
+        required: false
+        type: number
+        default: 80
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+      SLACK_WEBHOOK:
+        required: false
+
+jobs:
+  qa-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linting
+        run: npm run lint
+      
+      - name: Run unit tests
+        run: npm run test:unit -- --coverage
+      
+      - name: Run integration tests
+        run: npm run test:integration
+      
+      - name: Run E2E tests
+        if: inputs.run-e2e
+        uses: cypress-io/github-action@v6
+        with:
+          start: npm start
+          wait-on: 'http://localhost:3000'
+      
+      - name: Check coverage
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          if (( $(echo "$COVERAGE < ${{ inputs.coverage-threshold }}" | bc -l) )); then
+            echo "Coverage $COVERAGE% below threshold ${{ inputs.coverage-threshold }}%"
+            exit 1
+          fi
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+        if: secrets.CODECOV_TOKEN != ''

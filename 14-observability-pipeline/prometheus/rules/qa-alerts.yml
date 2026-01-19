@@ -1,0 +1,94 @@
+# QA Alerting Rules
+groups:
+  - name: qa-test-alerts
+    interval: 30s
+    rules:
+      # ===================
+      # TEST FAILURES
+      # ===================
+      - alert: HighTestFailureRate
+        expr: |
+          (
+            sum(rate(test_failures_total[5m])) /
+            sum(rate(test_executions_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: qa
+        annotations:
+          summary: "High test failure rate detected"
+          description: "Test failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook: "https://wiki.example.com/runbooks/high-test-failure-rate"
+
+      - alert: TestSuiteStuck
+        expr: |
+          time() - max(test_suite_last_completion_timestamp) > 3600
+        for: 10m
+        labels:
+          severity: warning
+          team: qa
+        annotations:
+          summary: "Test suite appears to be stuck"
+          description: "No test suite has completed in the last hour"
+
+      # ===================
+      # COVERAGE
+      # ===================
+      - alert: CoverageDropped
+        expr: |
+          (code_coverage_percentage - code_coverage_percentage offset 1d) < -5
+        for: 1h
+        labels:
+          severity: warning
+          team: qa
+        annotations:
+          summary: "Code coverage dropped significantly"
+          description: "Coverage dropped by {{ $value }}% compared to yesterday"
+
+      # ===================
+      # INFRASTRUCTURE
+      # ===================
+      - alert: SeleniumGridDown
+        expr: up{job="selenium-grid"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: qa
+        annotations:
+          summary: "Selenium Grid is down"
+          description: "Selenium Grid has been unreachable for 5 minutes"
+
+      - alert: TestDatabaseHighConnections
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: qa
+        annotations:
+          summary: "Test database has high connection count"
+          description: "Database connection count is {{ $value }}"
+
+      # ===================
+      # PERFORMANCE
+      # ===================
+      - alert: SlowTestExecution
+        expr: |
+          histogram_quantile(0.95, rate(test_execution_duration_seconds_bucket[10m])) > 300
+        for: 15m
+        labels:
+          severity: warning
+          team: qa
+        annotations:
+          summary: "Test execution is slow"
+          description: "P95 test execution time is {{ $value | humanizeDuration }}"
+
+      - alert: QueuedTestsBacklog
+        expr: test_queue_length > 100
+        for: 10m
+        labels:
+          severity: warning
+          team: qa
+        annotations:
+          summary: "Test queue backlog is growing"
+          description: "{{ $value }} tests are waiting in queue"

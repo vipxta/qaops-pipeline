@@ -1,0 +1,98 @@
+# Selenium Grid 4 with Dynamic Scaling
+version: '3.9'
+
+services:
+  selenium-hub:
+    image: selenium/hub:4.15.0-20231129
+    container_name: selenium-hub
+    ports:
+      - "4442:4442"
+      - "4443:4443"
+      - "4444:4444"
+    environment:
+      - GRID_MAX_SESSION=16
+      - GRID_BROWSER_TIMEOUT=120
+      - GRID_TIMEOUT=120
+      - SE_NODE_SESSION_TIMEOUT=120
+    networks:
+      - grid
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  chrome:
+    image: selenium/node-chrome:4.15.0-20231129
+    shm_size: '2gb'
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=4
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+      - SE_VNC_NO_PASSWORD=1
+    ports:
+      - "5900-5903:5900"
+    networks:
+      - grid
+    deploy:
+      replicas: 4
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+
+  firefox:
+    image: selenium/node-firefox:4.15.0-20231129
+    shm_size: '2gb'
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=4
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+    networks:
+      - grid
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+
+  edge:
+    image: selenium/node-edge:4.15.0-20231129
+    shm_size: '2gb'
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=2
+    networks:
+      - grid
+    deploy:
+      replicas: 2
+
+  # Video Recording
+  video:
+    image: selenium/video:ffmpeg-4.3.1-20231129
+    depends_on:
+      - chrome
+    volumes:
+      - ./videos:/videos
+    environment:
+      - DISPLAY_CONTAINER_NAME=chrome
+      - SE_VIDEO_FILE_NAME=auto
+    networks:
+      - grid
+
+networks:
+  grid:
+    driver: bridge

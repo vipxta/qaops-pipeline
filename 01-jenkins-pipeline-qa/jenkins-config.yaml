@@ -1,0 +1,54 @@
+# Jenkins Configuration as Code (JCasC)
+jobs:
+  - script: >
+      pipelineJob('qa-pipeline') {
+        description('QA Automation Pipeline')
+        
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/vipxta/qaops-pipeline.git')
+                  credentials('github-token')
+                }
+                branches('*/main', '*/develop')
+              }
+            }
+            scriptPath('01-jenkins-pipeline-qa/Jenkinsfile')
+          }
+        }
+        
+        triggers {
+          scm('H/5 * * * *')
+          githubPush()
+        }
+        
+        properties {
+          buildDiscarder {
+            strategy {
+              logRotator {
+                numToKeepStr('20')
+                daysToKeepStr('30')
+              }
+            }
+          }
+        }
+      }
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: github-token
+              username: "${GITHUB_USER}"
+              password: "${GITHUB_TOKEN}"
+              description: "GitHub Token"
+
+unclassified:
+  slackNotifier:
+    teamDomain: "your-team"
+    tokenCredentialId: "slack-token"
+    room: "#qa-alerts"

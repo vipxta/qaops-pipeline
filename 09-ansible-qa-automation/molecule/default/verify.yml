@@ -1,0 +1,82 @@
+# Verification Playbook
+---
+- name: Verify QA Infrastructure
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify Node.js is installed
+      command: node --version
+      register: node_version
+      changed_when: false
+      
+    - name: Assert Node.js version
+      assert:
+        that:
+          - node_version.rc == 0
+          - "'v18' in node_version.stdout or 'v20' in node_version.stdout"
+        fail_msg: "Node.js 18+ is required"
+        
+    - name: Verify npm is installed
+      command: npm --version
+      register: npm_version
+      changed_when: false
+      
+    - name: Verify Docker is running
+      service:
+        name: docker
+        state: started
+      check_mode: true
+      register: docker_status
+      
+    - name: Assert Docker is running
+      assert:
+        that:
+          - docker_status.status.ActiveState == "active"
+        fail_msg: "Docker should be running"
+        
+    - name: Verify QA tools are installed
+      command: "which {{ item }}"
+      loop:
+        - jq
+        - curl
+        - git
+      register: tools_check
+      changed_when: false
+      
+    - name: Verify firewall rules
+      command: ufw status
+      register: ufw_status
+      changed_when: false
+      when: ansible_os_family == "Debian"
+      
+    - name: Check test directory exists
+      stat:
+        path: /opt/qa/tests
+      register: test_dir
+      
+    - name: Assert test directory exists
+      assert:
+        that:
+          - test_dir.stat.exists
+          - test_dir.stat.isdir
+        fail_msg: "Test directory should exist"
+        
+    - name: Verify test runner service
+      service:
+        name: qa-runner
+        state: started
+      check_mode: true
+      register: runner_status
+      ignore_errors: true
+      
+    - name: Display verification summary
+      debug:
+        msg: |
+          ══════════════════════════════════
+          ✅ QA Infrastructure Verified
+          ══════════════════════════════════
+          Node.js: {{ node_version.stdout }}
+          npm: {{ npm_version.stdout }}
+          Docker: Active
+          Test Directory: /opt/qa/tests
+          ══════════════════════════════════

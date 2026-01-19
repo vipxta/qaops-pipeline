@@ -1,0 +1,59 @@
+{
+  "name": "QAOps Quality Gate",
+  "conditions": [
+    {
+      "metric": "new_coverage",
+      "op": "LT",
+      "error": "80",
+      "description": "Coverage on new code < 80%"
+    },
+    {
+      "metric": "new_duplicated_lines_density",
+      "op": "GT",
+      "error": "3",
+      "description": "Duplicated lines > 3%"
+    },
+    {
+      "metric": "new_maintainability_rating",
+      "op": "GT",
+      "error": "1",
+      "description": "Maintainability rating worse than A"
+    },
+    {
+      "metric": "new_reliability_rating",
+      "op": "GT",
+      "error": "1",
+      "description": "Reliability rating worse than A"
+    },
+    {
+      "metric": "new_security_rating",
+      "op": "GT",
+      "error": "1",
+      "description": "Security rating worse than A"
+    },
+    {
+      "metric": "new_security_hotspots_reviewed",
+      "op": "LT",
+      "error": "100",
+      "description": "Security hotspots not reviewed"
+    },
+    {
+      "metric": "new_bugs",
+      "op": "GT",
+      "error": "0",
+      "description": "New bugs introduced"
+    },
+    {
+      "metric": "new_vulnerabilities",
+      "op": "GT",
+      "error": "0",
+      "description": "New vulnerabilities introduced"
+    },
+    {
+      "metric": "new_code_smells",
+      "op": "GT",
+      "error": "10",
+      "description": "Too many code smells"
+    }
+  ]
+}

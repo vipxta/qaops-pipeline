@@ -1,0 +1,125 @@
+# ArgoCD Application para QA Environment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qa-environment
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    app.kubernetes.io/name: qa-environment
+    environment: qa
+spec:
+  project: qa-project
+  
+  source:
+    repoURL: https://github.com/vipxta/qaops-pipeline.git
+    targetRevision: HEAD
+    path: 07-argocd-gitops-qa/k8s
+    
+    helm:
+      valueFiles:
+        - values-qa.yaml
+      parameters:
+        - name: image.tag
+          value: $ARGOCD_APP_REVISION
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: qa-tests
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  
+  info:
+    - name: Description
+      value: "QA Test Environment"
+    - name: Team
+      value: "QA Engineering"
+
+---
+# ArgoCD Project
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: qa-project
+  namespace: argocd
+spec:
+  description: QA Testing Project
+  
+  sourceRepos:
+    - 'https://github.com/vipxta/*'
+  
+  destinations:
+    - namespace: qa-*
+      server: https://kubernetes.default.svc
+  
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  
+  roles:
+    - name: qa-admin
+      description: QA Administrator
+      policies:
+        - p, proj:qa-project:qa-admin, applications, *, qa-project/*, allow
+      groups:
+        - qa-team
+
+---
+# ApplicationSet para Ambientes Dinamicos
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: qa-envs
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: qa
+            cluster: production
+          - env: staging
+            cluster: production
+          - env: dev
+            cluster: development
+  
+  template:
+    metadata:
+      name: 'test-env-{{env}}'
+    spec:
+      project: qa-project
+      source:
+        repoURL: https://github.com/vipxta/qaops-pipeline.git
+        targetRevision: HEAD
+        path: '07-argocd-gitops-qa/k8s/{{env}}'
+      destination:
+        server: 'https://{{cluster}}.k8s.local'
+        namespace: 'qa-{{env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

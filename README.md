@@ -59,8 +59,8 @@ cd qaops-pipeline
 ## 👤 Autor
 
 **Isaac Meneguini Albuquerque**
-- LinkedIn: [isaac-meneguini](https://linkedin.com/in/isaac-meneguini)
-- Email: isaacmalbuquerque@gmail.com
+- LinkedIn: [isaac-meneguini](https://vipxta-isaac-portfolio.vercel.app/#about)
+- Email: isaacmeneguini@gmail.com
 
 ## 📄 Licença
 
